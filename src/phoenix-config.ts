@@ -3,6 +3,20 @@ const axes = {
   y: { start: 'top', end: 'bottom' }
 };
 
+const proWindows = {
+  vscode: new Set([]) as Set<string>,
+  chrome: new Set([]) as Set<string>,
+  slack: new Set([]) as Set<string>,
+  iterm2: new Set([]) as Set<string>,
+}
+const persoWindows = {
+  vscode: new Set([]) as Set<string>,
+  chrome: new Set([]) as Set<string>,
+  spark: new Set([]) as Set<string>,
+  iterm2: new Set([]) as Set<string>,
+}
+const aposApps = []
+
 function looseEquals(arg1: number, arg2: number, epsilon: number = 0.01) : boolean {
   if (arg1 === arg2) { return true; }
   const arg1m = Math.abs(arg1);
@@ -92,6 +106,7 @@ class WindowBinding {
     return { x: 0, y: 0, width: 100, height: 100 };
   }
 }
+
 /**
  * Represents an arrangement of screens and spaces and the bindings that go with that arrangement
  */
@@ -192,6 +207,7 @@ class BindingSet {
     return this._count;
   }
 }
+
 /**
  * Uses the data encapsulated in a BindingSet to manage the active user's active windows
  */
@@ -200,6 +216,7 @@ interface WindowManagerParameters {
   logger?: Logger;
   snapToEdgeThreshold?: number;
 }
+
 interface WindowInfo {
   window: Window;
 //  screen: Screen;
@@ -207,6 +224,7 @@ interface WindowInfo {
   screenIndex: number;
   spaceIndex: number;
 }
+
 class WindowManager {
   _logger: Logger;
   _bindingSet: BindingSet;
@@ -229,6 +247,9 @@ class WindowManager {
   }
   async getActiveSpaceBindingName() : Promise<string> {
     const currentLayout = await WindowManager.getScreenSpaceLayout();
+    // logger.logIndent(0, `startDelta: ${windowStartDelta}. endDelta: ${windowEndDelta}`);
+    const spaceMap = Space.all().map(space => space.windows().length);
+    logger.logIndent(0, `currentLayout: ${currentLayout} ----- spaceMap: ${spaceMap}`);
     const setName = this._bindingSet.match(currentLayout);
     if (!setName || setName === "default") {
       const screenFrame = Screen.main().visibleFrame();
@@ -349,9 +370,8 @@ class WindowManager {
     }
   }
 
-  static async moveWindow(windowHandle: Window, fromSpace: Space, toSpace: Space) {
-    fromSpace.removeWindows([windowHandle]);
-    toSpace.addWindows([windowHandle]);
+  static async moveWindow(windowHandle: Window, toSpace: Space) {
+    toSpace.moveWindows([windowHandle]);
   }
 
   static launchModal(text: string, duration: number, frame: Rectangle) : Modal {
@@ -383,7 +403,7 @@ class WindowManager {
   }
 
   getWindowBinding(window: Window, spaceBinding: SpaceBinding) : WindowBinding {
-    const appId = window.app().bundleIdentifier();
+    const appId = window.title();
     if (this._excludes[appId]) {
       return null;
     }
@@ -428,7 +448,7 @@ class WindowManager {
             return 0;
           }
           logger.logIndent(1, `Moving app "${windowInfo.window.app().name()}" window "${windowInfo.window.title()}" from screen ${windowInfo.screenIndex}, space ${windowInfo.spaceIndex} to screen ${binding.screen}, space ${binding.space}`);
-          WindowManager.moveWindow(windowInfo.window, windowInfo.space, newSpace);
+          WindowManager.moveWindow(windowInfo.window, newSpace);
           this.resizeWindow(
             windowInfo.window,
             oldScreen,
@@ -456,8 +476,13 @@ class WindowManager {
   }
 }
 
-function enumerateAppWindows(logger: Logger) {
+async function enumerateAppWindows(logger: Logger) {
   logger.log('Retrieving screens');
+  const currentScreenFrame = Screen.main().visibleFrame();
+  await later(100, WindowManager.launchModal('Listing windows...',
+    5,
+    currentScreenFrame
+  ));
   const screenHandles = Screen.all();
   const screens = { null: 'null' };
   screenHandles.forEach((screenHandle, index) => {
@@ -482,6 +507,37 @@ function enumerateAppWindows(logger: Logger) {
           const width = 100 * windowFrame.width / screenFrame.width;
           const height = 100 * windowFrame.height / screenFrame.height;
           logger.logIndent(2, `screen: ${screens[screenId]}, window: "${windowHandle.title()}" x: ${x}, y: ${y}, width: ${width}, height: ${height}.`);
+          if (appHandle.name() === 'Google Chrome' && windowHandle.title()) {
+            if (windowHandle.title().match(/ \(apostrophecms.com\)/)) {
+              proWindows.chrome.add(windowHandle.title())
+            } else {
+              persoWindows.chrome.add(windowHandle.title())
+            }
+            logger.logIndent(4, `Chrome tabs browser: ${windowHandle.title().match(/ \(apostrophecms.com\)/) ? 'pro' : 'perso'}`);
+          } else if (appHandle.name() === 'Slack') {
+            proWindows.slack.add(windowHandle.title())
+          } else if (appHandle.name() === 'Spark') {
+            persoWindows.spark.add(windowHandle.title())
+          } else if (appHandle.name() === 'iTerm2') {
+            if (windowHandle.title().match(/apostrophe/)) {
+              proWindows.iterm2.add(windowHandle.title())
+            } else {
+              persoWindows.iterm2.add(windowHandle.title())
+            }
+            logger.logIndent(4, `iTerm2: ${windowHandle.title().match(/apostrophe/) ? 'pro' : 'perso'}`);
+          } else if (appHandle.bundleIdentifier() === 'com.microsoft.VSCode') {
+            for (const aposApp of aposApps) {
+              const regex = new RegExp(aposApp);
+
+              if (regex.test(windowHandle.title())) {
+                proWindows.vscode.add(windowHandle.title())
+                logger.logIndent(4, `VSCode: ${windowHandle.title()} pro`);
+                break
+              } else {
+                persoWindows.vscode.add(windowHandle.title())
+              }
+            }
+          }
         }
         else {
           logger.logIndent(2, `windowHandle "${windowHandle.title()}" has no screenHandle.`);
@@ -508,8 +564,14 @@ const windowManager = new WindowManager({logger, snapToEdgeThreshold});
 
 // Key bindings
 
-const enumerateKey = new Key('x', [ 'ctrl', 'shift', 'alt' ], () => enumerateAppWindows(logger));
-const moveKey = new Key('z', [ 'ctrl', 'shift', 'alt' ], windowManager.moveBoundWindows.bind(windowManager));
+const enumerateKey = new Key('l', ['ctrl', 'alt'], async () => await listWindowsOnAllScreens(logger));
+const moveKey = new Key('m', ['ctrl', 'alt'], async () => {
+  await windowManager.moveBoundWindows()
+  Task.run('/usr/bin/osascript', ['-e', 'tell application "System Events" to key code 124 using {control down}\ndelay 1'], async () => {
+    await windowManager.moveBoundWindows()
+    Task.run('/usr/bin/osascript', ['-e', 'tell application "System Events" to key code 123 using {control down}'])
+  })
+});
 
 // Window bindings
 
@@ -523,104 +585,72 @@ const moveKey = new Key('z', [ 'ctrl', 'shift', 'alt' ], windowManager.moveBound
 // If the default binding for a bindingSet is set, all windows that don't match another binding
 //   will be moved to that screen
 
-windowManager.exclude('net.antelle.keeweb'); // on all spaces of primary screen
-windowManager.exclude('org.keepassx.keepassxc'); // on all spaces of primary screen
+// windowManager.exclude('net.antelle.keeweb'); // on all spaces of primary screen
+// windowManager.exclude('org.keepassx.keepassxc'); // on all spaces of primary screen
 
-const workDocked = new SpaceBinding('workDocked', [1, 2, 3]);
-windowManager.bindingSet.add(workDocked);
+////// Laptop alone (1, 2) //////
 
-const workLaptop = 1;
-const workCenter = 0;
-const workRight = 2;
+const oneScreenTwoSpaces = new SpaceBinding('oneScreenTwoSpaces', [3]);
+const twoScreensThreeSpaces = new SpaceBinding('twoScreensThreeSpaces', [2, 2]);
+const largeScreen = new SpaceBinding('twoScreensThreeSpaces', [3, 2, 1]);
+const withIpad = new SpaceBinding('withIpad', [3, 1]);
 
-const slack: Rectangle = { x: 0, y: 0, width: 85, height: 85 };
-const notes: Rectangle = { x: 40, y: 10, width: 60, height: 90 };
-const ical: Rectangle = { x: 0, y: 25, width: 70, height: 75 };
-//bind('workDocked', 'google-play-music-desktop-player', 0, 0);
-//bind('workDocked', 'com.apple.ActivityMonitor', 0, 0);
+windowManager.bindingSet.add(oneScreenTwoSpaces);
+windowManager.bindingSet.add(twoScreensThreeSpaces);
+windowManager.bindingSet.add(largeScreen);
+windowManager.bindingSet.add(withIpad);
 
+function addWindowsToLayouts() {
+  Object.entries(persoWindows).forEach(([appName, app]) => {
+    app.forEach((window) => {
+      // console.log('screen PERSO appName ====> ', appName, 'window ====> ', window)
+      oneScreenTwoSpaces.addNew(window, 0, 1, WindowBinding.maximize);
 
-// Laptop
-workDocked.addNew('org.mozilla.firefox', workLaptop, 0, WindowBinding.maximize);
+      if (appName === 'chrome') {
+        twoScreensThreeSpaces.addNew(window, 0, 1, WindowBinding.maximize);
+        withIpad.addNew(window, 1, 0, WindowBinding.maximize);
+        largeScreen.addNew(window, 2, 0, WindowBinding.maximize);
+      } else {
+        twoScreensThreeSpaces.addNew(window, 1, 0, WindowBinding.maximize);
+        withIpad.addNew(window, 0, 1, WindowBinding.maximize);
+        largeScreen.addNew(window, 1, 0, WindowBinding.maximize);
+      }
+    });
+  });
+  Object.entries(proWindows).forEach(([appName, app]) => {
+    app.forEach((window) => {
+      // console.log('screen PRO appName ====> ', appName, 'window ====> ', window)
+      oneScreenTwoSpaces.addNew(window, 0, 2, WindowBinding.maximize);
 
-workDocked.addNew('com.tinyspeck.slackmacgap', workLaptop, 1, slack);
-workDocked.addNew('com.apple.Notes', workLaptop, 1, notes);
-workDocked.addNew('com.apple.iCal', workLaptop, 1, ical);
+      if (appName === 'chrome') {
+        twoScreensThreeSpaces.addNew(window, 0, 1, WindowBinding.maximize);
+        withIpad.addNew(window, 1, 0, WindowBinding.maximize);
+        largeScreen.addNew(window, 2, 0, WindowBinding.maximize);
+      } else {
+        twoScreensThreeSpaces.addNew(window, 1, 1, WindowBinding.maximize);
+        withIpad.addNew(window, 0, 2, WindowBinding.maximize);
+        largeScreen.addNew(window, 1, 1, WindowBinding.maximize);
+      }
+    });
+  });
+}
 
-// Center screen
-workDocked.defaultBinding = new WindowBinding('*', workCenter, 0);
+async function listWindowsOnAllScreens(logger: Logger) {
+  Task.run('/bin/zsh', ['-ic', 'ls ${=args} ~/Dev/apostrophe-inc'], async (result) => {
+    // logger.logIndent(0, `*********** apos apps: ${result.output}`);
+    (result.output || '').split('\n').forEach((app) => {
+      if (app) {
+        aposApps.push(app)
+      }
+    })
+    await enumerateAppWindows(logger)
+    addWindowsToLayouts()
 
+    Task.run('/usr/bin/osascript', ['-e', 'tell application "System Events" to key code 124 using {control down}\ndelay 1'], async () => {
+      await enumerateAppWindows(logger)
+      addWindowsToLayouts()
 
-// Right screen
-workDocked.addNew('com.postmanlabs.mac', workRight, 0);
-workDocked.addNew('com.TechSmith.Snagit2018', workRight, 0);
-workDocked.addNew('org.freeplane.core', workRight, 0);
-
-workDocked.addNew('com.googlecode.iterm2', workRight, 1, WindowBinding.maximize);
-
-
-////// Tall IntelliJ for Java development //////
-
-// laptop[2], vertical screen[2], horizontal screen[2]
-
-const workJava = new SpaceBinding('workJava', [2, 2, 2]);
-windowManager.bindingSet.add(workJava);
-
-// Laptop
-workJava.addNew('org.mozilla.firefox', workLaptop, 0, WindowBinding.maximize);
-
-workJava.addNew('com.tinyspeck.slackmacgap', workLaptop, 1, slack);
-workJava.addNew('com.apple.Notes', workLaptop, 1, notes);
-workJava.addNew('com.apple.iCal', workLaptop, 1, ical);
-
-// Vertical screen
-workJava.defaultBinding = new WindowBinding('*', workCenter, 0);
-
-workJava.addNew('com.jetbrains.intellij.ce', workCenter, 1, WindowBinding.maximize);
-
-// Horizontal screen
-workJava.addNew('com.postmanlabs.mac', workRight, 0);
-workJava.addNew('com.TechSmith.Snagit2018', workRight, 0);
-workJava.addNew('org.freeplane.core', workRight, 0);
-
-workJava.addNew('com.googlecode.iterm2', workRight, 1, WindowBinding.maximize);
-
-////// Laptop alone (1, 2, 3, 4) //////
-
-const undocked = new SpaceBinding('undocked', [4]);
-windowManager.bindingSet.add(undocked);
-
-// Space 1
-undocked.addNew('com.tinyspeck.slackmacgap', 0, 0, slack);
-undocked.addNew('com.apple.Notes', 0, 0, notes);
-undocked.addNew('com.apple.iCal', 0, 0, ical);
-
-// Space 2
-undocked.addNew('org.mozilla.firefox', 0, 1, WindowBinding.maximize);
-
-// Space 3
-undocked.defaultBinding = new WindowBinding('*', 0, 2);
-
-// Space 4
-undocked.addNew('com.googlecode.iterm2', 0, 3, {x: 0, y: 0, width: 92, height: 100});
-undocked.addNew('com.jetbrains.intellij.ce', 0, 3, {x: 8, y: 0, width: 92, height: 100});
-
-const homeDocked = new SpaceBinding('homeDocked', [2, 3]);
-
-windowManager.bindingSet.add(homeDocked);
-
-// arrangement is laptop[0], monitor[1]
-// monitor: [Everything else] [iTerm2] [IDEA]
-// laptop: [Slack, Calendar, Notes] [Firefox]
-
-homeDocked.addNew('com.jetbrains.intellij.ce', 1, 2, WindowBinding.maximize);
-
-homeDocked.addNew('com.googlecode.iterm2', 1, 1, WindowBinding.maximize);
-
-homeDocked.addNew('org.mozilla.firefox', 0, 1, WindowBinding.maximize);
-
-homeDocked.defaultBinding = new WindowBinding('*', 1, 0);
-
-homeDocked.addNew('com.tinyspeck.slackmacgap', 0, 0, slack);
-homeDocked.addNew('com.apple.Notes', 0, 0, notes);
-homeDocked.addNew('com.apple.iCal', 0, 0, ical);
+      Task.run('/usr/bin/osascript', ['-e', 'tell application "System Events" to key code 123 using {control down}'])
+    })
+  });
+}
