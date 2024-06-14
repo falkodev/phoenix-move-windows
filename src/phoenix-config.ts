@@ -15,7 +15,7 @@ const persoWindows = {
   spark: new Set([]) as Set<string>,
   iterm2: new Set([]) as Set<string>,
 }
-const aposApps = []
+const proApps = []
 
 function looseEquals(arg1: number, arg2: number, epsilon: number = 0.01) : boolean {
   if (arg1 === arg2) { return true; }
@@ -507,30 +507,29 @@ async function enumerateAppWindows(logger: Logger) {
           const width = 100 * windowFrame.width / screenFrame.width;
           const height = 100 * windowFrame.height / screenFrame.height;
           logger.logIndent(2, `screen: ${screens[screenId]}, window: "${windowHandle.title()}" x: ${x}, y: ${y}, width: ${width}, height: ${height}.`);
-          if (appHandle.name() === 'Google Chrome' && windowHandle.title()) {
-            if (windowHandle.title().match(/ \(apostrophecms.com\)/)) {
-              proWindows.chrome.add(windowHandle.title())
-            } else {
-              persoWindows.chrome.add(windowHandle.title())
-            }
-            logger.logIndent(4, `Chrome tabs browser: ${windowHandle.title().match(/ \(apostrophecms.com\)/) ? 'pro' : 'perso'}`);
+          if (appHandle.name() === 'Firefox' && windowHandle.title()) {
+            proWindows.chrome.add(windowHandle.title())
+            logger.logIndent(4, `Firefox tabs browser: pro`);
           } else if (appHandle.name() === 'Slack') {
+            proWindows.slack.add(windowHandle.title())
+          } else if (appHandle.name() === 'Microsoft Teams (work or school)') {
             proWindows.slack.add(windowHandle.title())
           } else if (appHandle.name() === 'Spark') {
             persoWindows.spark.add(windowHandle.title())
           } else if (appHandle.name() === 'iTerm2') {
-            if (windowHandle.title().match(/apostrophe/)) {
+            if (windowHandle.title().match(/michelin/)) {
               proWindows.iterm2.add(windowHandle.title())
             } else {
               persoWindows.iterm2.add(windowHandle.title())
             }
-            logger.logIndent(4, `iTerm2: ${windowHandle.title().match(/apostrophe/) ? 'pro' : 'perso'}`);
+            logger.logIndent(4, `iTerm2: ${windowHandle.title().match(/michelin/) ? 'pro' : 'perso'}`);
           } else if (appHandle.bundleIdentifier() === 'com.microsoft.VSCode') {
-            for (const aposApp of aposApps) {
-              const regex = new RegExp(aposApp);
+            for (const proApp of proApps) {
+              const regex = new RegExp(proApp);
 
               if (regex.test(windowHandle.title())) {
                 proWindows.vscode.add(windowHandle.title())
+                persoWindows.vscode.delete(windowHandle.title())
                 logger.logIndent(4, `VSCode: ${windowHandle.title()} pro`);
                 break
               } else {
@@ -592,12 +591,14 @@ const moveKey = new Key('m', ['ctrl', 'alt'], async () => {
 
 const oneScreenTwoSpaces = new SpaceBinding('oneScreenTwoSpaces', [3]);
 const twoScreensThreeSpaces = new SpaceBinding('twoScreensThreeSpaces', [2, 2]);
-const largeScreen = new SpaceBinding('twoScreensThreeSpaces', [3, 2, 1]);
+const largeScreen = new SpaceBinding('largeScreen', [2, 2, 1]);
+const largeScreenBis = new SpaceBinding('largeScreenBis', [3, 1, 2]);
 const withIpad = new SpaceBinding('withIpad', [3, 1]);
 
 windowManager.bindingSet.add(oneScreenTwoSpaces);
 windowManager.bindingSet.add(twoScreensThreeSpaces);
 windowManager.bindingSet.add(largeScreen);
+windowManager.bindingSet.add(largeScreenBis);
 windowManager.bindingSet.add(withIpad);
 
 function addWindowsToLayouts() {
@@ -610,10 +611,12 @@ function addWindowsToLayouts() {
         twoScreensThreeSpaces.addNew(window, 0, 1, WindowBinding.maximize);
         withIpad.addNew(window, 1, 0, WindowBinding.maximize);
         largeScreen.addNew(window, 2, 0, WindowBinding.maximize);
+        largeScreenBis.addNew(window, 1, 0, WindowBinding.maximize);
       } else {
         twoScreensThreeSpaces.addNew(window, 1, 0, WindowBinding.maximize);
         withIpad.addNew(window, 0, 1, WindowBinding.maximize);
         largeScreen.addNew(window, 1, 0, WindowBinding.maximize);
+        largeScreenBis.addNew(window, 2, 0, WindowBinding.maximize);
       }
     });
   });
@@ -626,23 +629,27 @@ function addWindowsToLayouts() {
         twoScreensThreeSpaces.addNew(window, 0, 1, WindowBinding.maximize);
         withIpad.addNew(window, 1, 0, WindowBinding.maximize);
         largeScreen.addNew(window, 2, 0, WindowBinding.maximize);
+        largeScreenBis.addNew(window, 1, 0, WindowBinding.maximize);
       } else {
         twoScreensThreeSpaces.addNew(window, 1, 1, WindowBinding.maximize);
         withIpad.addNew(window, 0, 2, WindowBinding.maximize);
         largeScreen.addNew(window, 1, 1, WindowBinding.maximize);
+        largeScreenBis.addNew(window, 2, 1, WindowBinding.maximize);
       }
     });
   });
 }
 
 async function listWindowsOnAllScreens(logger: Logger) {
-  Task.run('/bin/zsh', ['-ic', 'ls ${=args} ~/Dev/apostrophe-inc'], async (result) => {
-    // logger.logIndent(0, `*********** apos apps: ${result.output}`);
+  Task.run('/bin/zsh', ['-ic', 'ls ${=args} ~/Dev/michelin'], async (result) => {
+    logger.logIndent(0, `*********** pro apps: ${result.output}`);
     (result.output || '').split('\n').forEach((app) => {
       if (app) {
-        aposApps.push(app)
+        proApps.push(app)
+        logger.logIndent(0, `*********** pro apps ==> app: ${app}`);
       }
     })
+
     await enumerateAppWindows(logger)
     addWindowsToLayouts()
 
