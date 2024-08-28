@@ -507,9 +507,12 @@ async function enumerateAppWindows(logger: Logger) {
           const width = 100 * windowFrame.width / screenFrame.width;
           const height = 100 * windowFrame.height / screenFrame.height;
           logger.logIndent(2, `screen: ${screens[screenId]}, window: "${windowHandle.title()}" x: ${x}, y: ${y}, width: ${width}, height: ${height}.`);
-          if (appHandle.name() === 'Firefox' && windowHandle.title()) {
-            proWindows.chrome.add(windowHandle.title())
-            logger.logIndent(4, `Firefox tabs browser: pro`);
+          if (appHandle.name() === 'Firefox') {
+            persoWindows.chrome.add(windowHandle.title())
+            logger.logIndent(4, `Firefox tabs browser: perso`);
+          } else if (appHandle.name() === 'Google Chrome') {
+            persoWindows.chrome.add(windowHandle.title())
+            logger.logIndent(4, `Chrome tabs browser: pro`);
           } else if (appHandle.name() === 'Slack') {
             proWindows.slack.add(windowHandle.title())
           } else if (appHandle.name() === 'Microsoft Teams (work or school)') {
