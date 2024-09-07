@@ -596,12 +596,14 @@ const oneScreenTwoSpaces = new SpaceBinding('oneScreenTwoSpaces', [3]);
 const twoScreensThreeSpaces = new SpaceBinding('twoScreensThreeSpaces', [2, 2]);
 const largeScreen = new SpaceBinding('largeScreen', [2, 2, 1]);
 const largeScreenBis = new SpaceBinding('largeScreenBis', [3, 1, 2]);
+const largeScreenTer = new SpaceBinding('largeScreen', [2, 1, 2]);
 const withIpad = new SpaceBinding('withIpad', [3, 1]);
 
 windowManager.bindingSet.add(oneScreenTwoSpaces);
 windowManager.bindingSet.add(twoScreensThreeSpaces);
 windowManager.bindingSet.add(largeScreen);
 windowManager.bindingSet.add(largeScreenBis);
+windowManager.bindingSet.add(largeScreenTer);
 windowManager.bindingSet.add(withIpad);
 
 function addWindowsToLayouts() {
@@ -615,11 +617,13 @@ function addWindowsToLayouts() {
         withIpad.addNew(window, 1, 0, WindowBinding.maximize);
         largeScreen.addNew(window, 2, 0, WindowBinding.maximize);
         largeScreenBis.addNew(window, 1, 0, WindowBinding.maximize);
+        largeScreenTer.addNew(window, 1, 0, WindowBinding.maximize);
       } else {
         twoScreensThreeSpaces.addNew(window, 1, 0, WindowBinding.maximize);
         withIpad.addNew(window, 0, 1, WindowBinding.maximize);
         largeScreen.addNew(window, 1, 0, WindowBinding.maximize);
         largeScreenBis.addNew(window, 2, 0, WindowBinding.maximize);
+        largeScreenTer.addNew(window, 2, 0, WindowBinding.maximize);
       }
     });
   });
@@ -633,11 +637,13 @@ function addWindowsToLayouts() {
         withIpad.addNew(window, 1, 0, WindowBinding.maximize);
         largeScreen.addNew(window, 2, 0, WindowBinding.maximize);
         largeScreenBis.addNew(window, 1, 0, WindowBinding.maximize);
+        largeScreenTer.addNew(window, 1, 0, WindowBinding.maximize);
       } else {
         twoScreensThreeSpaces.addNew(window, 1, 1, WindowBinding.maximize);
         withIpad.addNew(window, 0, 2, WindowBinding.maximize);
         largeScreen.addNew(window, 1, 1, WindowBinding.maximize);
         largeScreenBis.addNew(window, 2, 1, WindowBinding.maximize);
+        largeScreenTer.addNew(window, 2, 1, WindowBinding.maximize);
       }
     });
   });
